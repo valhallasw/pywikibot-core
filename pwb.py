@@ -22,13 +22,11 @@ import imp
 import os
 import sys
 
-
 def run_python_file(filename, args):
     """Run a python file as if it were the main program on the command line.
 
     `filename` is the path to the file to execute, it need not be a .py file.
-    `args` is the argument array to present as sys.argv, including the first
-    element representing the file being executed.
+    `args` is the argument array to present as sys.argv, as unicode strings.
 
     """
     # Create a module to serve as __main__
@@ -40,8 +38,10 @@ def run_python_file(filename, args):
 
     # Set sys.argv and the first path element properly.
     old_argv = sys.argv
+    old_argvu = pwb.argvu
     old_path0 = sys.path[0]
-    sys.argv = args
+    sys.argv = [x.encode(pwb.ui.encoding) for x in args]
+    pwb.argvu = args
     sys.path[0] = os.path.dirname(filename)
 
     try:
@@ -54,6 +54,7 @@ def run_python_file(filename, args):
         # Restore the old argv and path
         sys.argv = old_argv
         sys.path[0] = old_path0
+        pwb.argvu = old_argvu
 
 #### end of snippet
 
@@ -86,9 +87,10 @@ if not os.path.exists(user_config_path):
     print "Please follow the prompts to create it:"
     run_python_file('generate_user_files.py', ['generate_user_files.py'])
 
-if len(sys.argv) > 1:
-    fn = sys.argv[1]
-    args = sys.argv[1:]
+import pywikibot as pwb
+if len(pwb.argvu) > 1:
+    fn = pwb.argvu[1]
+    args = pwb.argvu[1:]
 
     if not os.path.exists(fn):
         testpath = os.path.join(os.path.split(__file__)[0], 'scripts', fn)
