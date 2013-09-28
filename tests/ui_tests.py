@@ -7,7 +7,7 @@ Tests for the page module.
 #
 # Distributed under the terms of the MIT license.
 #
-__version__ = '$Id$'
+__version__ = '$Id: d4ba0665573abbd77dd57a40133c7c4d637af4ed $'
 
 import unittest
 import cStringIO
@@ -15,6 +15,7 @@ import StringIO
 import logging
 import os
 import sys
+import time
 
 if os.name == "nt":
     from multiprocessing.managers import BaseManager
@@ -354,10 +355,16 @@ if __name__ == "__main__":
             cls._process.kill()
 
         def getstdouterr(self):
+            self.setclip(u'')
             # select all and copy to clipboard
             self._app.window_().SetFocus()
             self._app.window_().TypeKeys('% {UP}{UP}{UP}{RIGHT}{DOWN}{DOWN}{DOWN}{ENTER}{ENTER}', with_spaces=True)
-            return self.getclip()
+            
+            while True:
+                data = self.getclip()
+                if data:
+                    return data
+                time.sleep(0.01)
 
         def setclip(self, text):
             win32clipboard.OpenClipboard()
@@ -376,7 +383,6 @@ if __name__ == "__main__":
             self.setclip(text.replace(u"\n", u"\r\n"))
             self._app.window_().SetFocus()
             self._app.window_().TypeKeys('% {UP}{UP}{UP}{RIGHT}{DOWN}{DOWN}{ENTER}', with_spaces=True)
-            self.setclip(u'')
 
         def setUp(self):
             super(TestWindowsTerminalUnicode, self).setUp()
