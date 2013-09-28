@@ -7,7 +7,18 @@ Tests for the page module.
 #
 # Distributed under the terms of the MIT license.
 #
-__version__ = '$Id: d4ba0665573abbd77dd57a40133c7c4d637af4ed $'
+
+# NOTE FOR RUNNING WINDOWS UI TESTS
+#
+# Windows UI tests have to be run using the tests\ui_tests.bat helper script.
+# This will set PYTHONPATH and PYWIKIBOT2_DIR, and then run the tests. Do not
+# touch mouse or keyboard while the tests are running, as this might disturb the
+# interaction tests.
+#
+# The Windows tests were developed on a Dutch Windows 7 OS. You might need to adapt the 
+# helper functions in TestWindowsTerminalUnicode for other versions.
+#
+__version__ = '$Id: b7e3a1c0914ac8bbb6c40b1ae4413c65e396dfa8 $'
 
 import unittest
 import cStringIO
@@ -329,40 +340,44 @@ if __name__ == "__main__":
             self.assertEqual(newstderr.getvalue(), "abcd \x1b[33;1mA\x1b[0m\x1b[33;1mB\x1b[0m\x1b[33;1mG\x1b[0m\x1b[33;1mD\x1b[0m \x1b[33;1ma\x1b[0m\x1b[33;1mb\x1b[0m\x1b[33;1mg\x1b[0m\x1b[33;1md\x1b[0m \x1b[33;1ma\x1b[0m\x1b[33;1mi\x1b[0m\x1b[33;1mu\x1b[0m\x1b[33;1me\x1b[0m\x1b[33;1mo\x1b[0m\n\x1b[0m")  # noqa
 
     @unittest.skipUnless(os.name == "nt", "requires Windows console")
-    class TestWindowsTerminalUnicode(UITestCase):
+    class WindowsTerminalTestCase(UITestCase):
         @classmethod
-        def setUpClass(cls):
-            import inspect
+        def setUpProcess(cls, command):
             import pywinauto
             import subprocess
             si = subprocess.STARTUPINFO()
             si.dwFlags = subprocess.STARTF_USESTDHANDLES
-            fn = inspect.getfile(inspect.currentframe())
-            cls._process = subprocess.Popen(["python", "pwb.py", fn, "--run-as-slave-interpreter"],
+            cls._process = subprocess.Popen(command,
                                             creationflags=subprocess.CREATE_NEW_CONSOLE)
-            _manager.connect()
-            cls.pywikibot = _manager.pywikibot()
 
             cls._app = pywinauto.application.Application()
             cls._app.connect_(process=cls._process.pid)
 
             # set truetype font (Lucida Console, hopefully)
             cls._app.window_().TypeKeys("% {UP}{ENTER}^L{HOME}L{ENTER}", with_spaces=True)
-
-        @classmethod
-        def tearDownClass(cls):
-            del cls.pywikibot
+        
+        @classmethod    
+        def tearDownProcess(cls):
             cls._process.kill()
 
-        def getstdouterr(self):
+        def setUp(self):
+            super(WindowsTerminalTestCase, self).setUp()
             self.setclip(u'')
+            
+        def waitForWindow(self):
+            while not self._app.window_().IsEnabled():
+                time.sleep(0.01)
+            
+        def getstdouterr(self):
+            sentinel = u'~~~~SENTINEL~~~~cedcfc9f-7eed-44e2-a176-d8c73136c185'
             # select all and copy to clipboard
             self._app.window_().SetFocus()
+            self.waitForWindow()
             self._app.window_().TypeKeys('% {UP}{UP}{UP}{RIGHT}{DOWN}{DOWN}{DOWN}{ENTER}{ENTER}', with_spaces=True)
             
             while True:
                 data = self.getclip()
-                if data:
+                if data != sentinel:
                     return data
                 time.sleep(0.01)
 
@@ -382,7 +397,23 @@ if __name__ == "__main__":
         def sendstdin(self, text):
             self.setclip(text.replace(u"\n", u"\r\n"))
             self._app.window_().SetFocus()
+            self.waitForWindow()
             self._app.window_().TypeKeys('% {UP}{UP}{UP}{RIGHT}{DOWN}{DOWN}{ENTER}', with_spaces=True)
+        
+    class TestWindowsTerminalUnicode(WindowsTerminalTestCase):
+        @classmethod
+        def setUpClass(cls):
+            import inspect
+            fn = inspect.getfile(inspect.currentframe())
+            cls.setUpProcess(["python", "pwb.py", fn, "--run-as-slave-interpreter"])
+            
+            _manager.connect()
+            cls.pywikibot = _manager.pywikibot()
+
+        @classmethod
+        def tearDownClass(cls):
+            del cls.pywikibot
+            cls.tearDownProcess()
 
         def setUp(self):
             super(TestWindowsTerminalUnicode, self).setUp()
@@ -394,7 +425,6 @@ if __name__ == "__main__":
             self.pywikibot.set_ui('encoding', 'utf-8')
 
             self.pywikibot.cls()
-            self.setclip(u'')
 
         def testOutputUnicodeText_no_transliterate(self):
             self.pywikibot.output(u"Заглавная_страница")
@@ -416,6 +446,28 @@ if __name__ == "__main__":
 
             self.assertEqual(returned, u"Заглавная_страница")
 
+    class TestWindowsTerminalUnicodeArguments(WindowsTerminalTestCase):
+        @classmethod
+        def setUpClass(cls):
+            import inspect
+            cls.setUpProcess(["cmd", "/k", "echo off"])
+
+        @classmethod
+        def tearDownClass(cls):
+            cls.tearDownProcess()
+            pass
+            
+        def testOutputUnicodeText_no_transliterate(self):
+            self.sendstdin(u"""python -c "import os, pywikibot; os.system('cls'); pywikibot.output(u'\\n'.join(pywikibot.handleArgs()))" Alpha Bετα Гамма دلتا\n""")
+            while(True):
+                lines = self.getstdouterr().split("\n")
+                if len(lines) >= 4 and lines[0] == "Alpha":
+                    break
+                time.sleep(1)
+            
+            # empty line is the new command line
+            self.assertEqual(lines, [u"Alpha", u"Bετα", u"Гамма", u"دلتا", u""])
+            
     try:
         try:
             unittest.main()
