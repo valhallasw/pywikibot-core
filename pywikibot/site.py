@@ -1861,8 +1861,7 @@ class APISite(BaseSite):
         @type force: bool
         """
         if (not hasattr(self, '_userinfo') or force or
-                'rights' not in self._userinfo or
-                self._userinfo['name'] != self._username['sysop' in self._userinfo['groups']]):
+                'rights' not in self._userinfo):
             uirequest = self._simple_request(
                 action="query",
                 meta="userinfo",
